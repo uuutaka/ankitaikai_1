@@ -83,10 +83,11 @@ button:disabled{opacity:.38}
 <section id="setup" class="panel">
 <p class="lead">カードの表に問題、裏に答えを表示します。カードをタップすると表裏が切り替わります。</p>
 <div class="grid">
+ <div class="field"><label for="rangeMode">出題範囲</label><select id="rangeMode"><option value="new" selected>第2回 新規範囲のみ</option><option value="all">第2回 全範囲</option><option value="round1">第1回範囲のみ</option></select></div>
  <div class="field"><label for="subject">分野</label><select id="subject"><option value="">全分野</option></select></div>
  <div class="field"><label for="count">カード枚数</label><select id="count"><option value="5">5枚</option><option value="10">10枚</option><option value="20">20枚</option><option value="30">30枚</option><option value="50">50枚</option><option value="all" selected>全部</option></select></div>
  <div class="field"><label for="order">出題順</label><select id="order"><option value="random" selected>ランダム</option><option value="sequential">順番</option></select></div>
- <div class="field full"><label for="keyword">キーワード（任意）</label><input id="keyword" type="search" placeholder="例：江戸、火山、光" autocomplete="off"></div>
+ <div class="field full"><label for="keyword">キーワード（任意）</label><input id="keyword" type="search" placeholder="例：公民、火山、光" autocomplete="off"></div>
 </div>
 <div class="actions"><button id="startBtn" class="primary" type="button" disabled>カードを開始</button></div>
 <p id="dataStatus" class="small-note">問題データを読み込んでいます。</p>
@@ -117,7 +118,7 @@ button:disabled{opacity:.38}
 let DATA=[];
 let DATA_META=null;
 const $=id=>document.getElementById(id);
-const el={setup:$('setup'),quiz:$('quiz'),finish:$('finish'),subject:$('subject'),count:$('count'),order:$('order'),keyword:$('keyword'),start:$('startBtn'),card:$('card'),q:$('questionText'),a:$('answerText'),progress:$('progressLabel'),bar:$('progressBar'),source:$('source'),flip:$('flipBtn'),prev:$('prevBtn'),next:$('nextBtn'),home:$('homeBtn'),again:$('againBtn'),settings:$('settingsBtn'),finishText:$('finishText'),badge:$('totalBadge'),status:$('dataStatus')};
+const el={setup:$('setup'),quiz:$('quiz'),finish:$('finish'),rangeMode:$('rangeMode'),subject:$('subject'),count:$('count'),order:$('order'),keyword:$('keyword'),start:$('startBtn'),card:$('card'),q:$('questionText'),a:$('answerText'),progress:$('progressLabel'),bar:$('progressBar'),source:$('source'),flip:$('flipBtn'),prev:$('prevBtn'),next:$('nextBtn'),home:$('homeBtn'),again:$('againBtn'),settings:$('settingsBtn'),finishText:$('finishText'),badge:$('totalBadge'),status:$('dataStatus')};
 let session=null;
 
 async function loadData(){
@@ -129,12 +130,12 @@ async function loadData(){
     DATA=payload.questions;
     DATA_META=payload.meta||{};
     if(!DATA.length) throw new Error('問題データが空です');
-    const subjects=[...new Set(DATA.map(x=>x.subject))];
-    el.subject.innerHTML='<option value="">全分野</option>';
-    for(const s of subjects){const o=document.createElement('option');o.value=s;o.textContent=s;el.subject.appendChild(o)}
+    updateSubjects();
+    const newTotal=Number(DATA_META.new_total ?? DATA.filter(x=>!x.round1).length);
+    const round1Total=Number(DATA_META.round1_total ?? DATA.filter(x=>x.round1).length);
     el.badge.textContent=`全 ${DATA.length} 問`;
     const generated=DATA_META.generated_at ? ` / データ更新: ${String(DATA_META.generated_at).slice(0,10)}` : '';
-    el.status.textContent=`問題・回答データを読み込みました（${DATA.length}問）${generated}`;
+    el.status.textContent=`第2回 新規範囲 ${newTotal}問 / 第1回範囲 ${round1Total}問 / 全範囲 ${DATA.length}問${generated}`;
     el.start.disabled=false;
   }catch(err){
     console.error(err);
@@ -143,9 +144,22 @@ async function loadData(){
     el.start.disabled=true;
   }
 }
+function inSelectedRange(x){
+ const mode=el.rangeMode.value;
+ if(mode==='new') return !x.round1;
+ if(mode==='round1') return !!x.round1;
+ return true;
+}
+function updateSubjects(){
+ const previous=el.subject.value;
+ const subjects=[...new Set(DATA.filter(inSelectedRange).map(x=>x.subject))];
+ el.subject.innerHTML='<option value="">全分野</option>';
+ for(const s of subjects){const o=document.createElement('option');o.value=s;o.textContent=s;el.subject.appendChild(o)}
+ if(subjects.includes(previous)) el.subject.value=previous;
+}
 function pool(){
  const s=el.subject.value,k=el.keyword.value.trim().toLowerCase();
- return DATA.filter(x=>(!s||x.subject===s)&&(!k||(x.question+' '+x.answer).toLowerCase().includes(k)));
+ return DATA.filter(x=>inSelectedRange(x)&&(!s||x.subject===s)&&(!k||(x.question+' '+x.answer).toLowerCase().includes(k)));
 }
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function selected(){let a=pool();if(el.order.value==='random')a=shuffle(a);const n=el.count.value==='all'?a.length:Math.min(+el.count.value,a.length);return a.slice(0,n)}
@@ -166,7 +180,7 @@ function home(){session=null;setFlip(false);el.quiz.classList.add('hidden');el.f
 function finish(){el.quiz.classList.add('hidden');el.finish.classList.remove('hidden');el.finishText.textContent=`${session.cards.length}枚のカードを確認しました。`;scrollToTop()}
 function again(){if(!session)return;let cards=selected();if(!cards.length)return;session={cards,index:0};el.finish.classList.add('hidden');el.quiz.classList.remove('hidden');render();scrollToTop()}
 function settings(){el.finish.classList.add('hidden');el.quiz.classList.add('hidden');el.setup.classList.remove('hidden');scrollToTop()}
-el.start.addEventListener('click',start);el.card.addEventListener('click',toggleFlip);el.flip.addEventListener('click',toggleFlip);el.prev.addEventListener('click',prev);el.next.addEventListener('click',next);el.home.addEventListener('click',home);el.again.addEventListener('click',again);el.settings.addEventListener('click',settings);
+el.rangeMode.addEventListener('change',updateSubjects);el.start.addEventListener('click',start);el.card.addEventListener('click',toggleFlip);el.flip.addEventListener('click',toggleFlip);el.prev.addEventListener('click',prev);el.next.addEventListener('click',next);el.home.addEventListener('click',home);el.again.addEventListener('click',again);el.settings.addEventListener('click',settings);
 el.card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleFlip()}});
 loadData();
 </script>

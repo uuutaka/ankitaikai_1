@@ -1,4 +1,4 @@
-const CACHE_NAME = 'middle-school-flashcards-json-v5';
+const CACHE_NAME = 'anki-taikai-round2-v1';
 const APP_SHELL = [
   './',
   './index.html',

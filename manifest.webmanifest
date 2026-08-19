@@ -1,7 +1,7 @@
 {
   "name": "暗記大会",
   "short_name": "暗記大会",
-  "description": "問題・解答を1枚ずつ確認できる単語カードアプリ",
+  "description": "問題と答えを1枚ずつ確認できる暗記カードアプリ",
   "lang": "ja",
   "id": "./",
   "start_url": "./",
